@@ -1,0 +1,242 @@
+# Default values for hive-metastore.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+## @section Common parameters
+
+## @param image.repository [default: sslhep/hive-metastore] Docker image repository
+## @param image.pullPolicy Docker image pull policy
+## @param image.tag Docker image tag (immutable tags are recommended)
+image:
+  repository: sslhep/hive-metastore
+  pullPolicy: IfNotPresent
+  tag: "3.1.3"
+
+## @param imagePullSecrets Docker registry secret names as an array
+imagePullSecrets: []
+## @param nameOverride String to partially override common.names.fullname template (will maintain the release name)
+nameOverride: ""
+## @param fullnameOverride String to fully override common.names.fullname template
+fullnameOverride: ""
+
+## Service account for Hive pods to use.
+## ref: https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/
+serviceAccount:
+  ## @param serviceAccount.create Enable creation of ServiceAccount for Airflow pods
+  create: true
+  ## @param serviceAccount.name The name of the ServiceAccount to use.
+  ## If not set and create is true, a name is generated using the common.names.fullname template
+  name: ""
+  ## @param serviceAccount.automountServiceAccountToken Allows auto mount of ServiceAccountToken on the serviceAccount created
+  ## Can be set to false if pods using this serviceAccount do not need to use K8s API
+  automountServiceAccountToken: false
+  ## @param serviceAccount.annotations Additional custom annotations for the ServiceAccount
+  annotations: {}
+
+## @param podAnnotations Extra annotations for Airflow exporter pods
+## ref: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
+podAnnotations: {}
+## @param podLabels Add extra labels to the Airflow web pods
+podLabels: {}
+
+## @param podSecurityContext Hive pods' Security Context
+## ref: https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-pod
+podSecurityContext:
+  {}
+  # fsGroup: 2000
+
+## @param securityContext Hive containers' Security Context
+## ref: https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-pod
+securityContext:
+  {}
+  # capabilities:
+  #   drop:
+  #   - ALL
+  # readOnlyRootFilesystem: true
+  # runAsNonRoot: true
+  # runAsUser: 1000
+
+## @param service.type Hive service type
+## @param service.port Hive service port
+service:
+  type: ClusterIP
+  port: 9083
+
+ingress:
+  ## @param ingress.enabled Enable ingress record generation for Hive
+  enabled: false
+  ## @param ingress.className Class that vill be used to implement the Ingress
+  className: ""
+  ## @param ingress.annotations [object] Additional annotations for the Ingress resource. To enable certificate autogeneration, place here your cert-manager annotations.
+  ## ref: https://cert-manager.io/docs/usage/ingress/#supported-annotations
+  annotations:
+    {}
+    # kubernetes.io/ingress.class: nginx
+    # kubernetes.io/tls-acme: "true"
+  ## @param ingress.hosts [array] List of hosts configuration
+  hosts:
+    - host: chart-example.local
+      paths:
+        - path: /
+          pathType: ImplementationSpecific
+  ## @param ingress.tls Enable TLS configuration for the hosts defined `ingress.hosts` parameter
+  tls: []
+  #  - secretName: chart-example-tls
+  #    hosts:
+  #      - chart-example.local
+
+## @param resources Set container requests and limits for different resources like CPU or memory (essential for production workloads)
+resources:
+  {}
+  # We usually recommend not to specify default resources and to leave this as a conscious
+  # choice for the user. This also increases chances charts run on environments with little
+  # resources, such as Minikube. If you do want to specify resources, uncomment the following
+  # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+  # limits:
+  #   cpu: 100m
+  #   memory: 128Mi
+  # requests:
+  #   cpu: 100m
+  #   memory: 128Mi
+
+## @param nodeSelector Node labels for Hive pods assignment
+## Ref: https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/
+nodeSelector: {}
+
+## @param tolerations Tolerations for Hive pods assignment
+## Ref: https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/
+tolerations: []
+
+## @param affinity Affinity for Hive pods assignment (evaluated as a template)
+## Ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity
+affinity: {}
+
+## @param extraEnvVars Extra environment variables passed to Hive pods
+# e.g.
+# extraEnvVars: |
+#   - name: SOME_VAR
+#     value: SOME_VALUE
+extraEnvVars: ""
+
+## @param extraEnvVarsSecret Secret with extra environment variables
+extraEnvVarsSecret: ""
+
+## @param extraVolumeMounts Optionally specify extra list of additional volumeMounts for Hive pods
+extraVolumeMounts: []
+
+## @param extraVolumes Optionally specify extra list of additional volumes for Hive pods
+extraVolumes: []
+
+## @section Hive Parameters
+
+# Define hive connections to other services
+connections:
+  database:
+    ## @param connections.database.username [default: hive] Database username
+    username: hive
+    ## @param connections.database.password Database password. Note that one can use 'DATABASE_PASSWORD' environment variable instead.
+    password: ""
+    ## @param connections.database.database [default: metastore] Hive database name
+    database: metastore
+    ## @param connections.database.host Databas host
+    host: "{{ .Release.Name }}-postgresql"
+    ## @param connections.database.port [default: 5432] Database port
+    port: 5432
+
+# Update hive-site.xml file
+conf:
+  ## @param conf.hiveSite [object] Set of hive-site.xml configuration
+  hiveSite:
+    # Define tmp folder for hdfs since we only have metastore here.
+    # If not set, default hive.metastore.warehouse.dir is default to: "hdfs://{{.Release.Name}}-hdfs:8020/user/hive/warehouse"
+    hive.metastore.warehouse.dir: "file:///tmp"
+  ## @param conf.hiveSiteSecret Name of secret containing extra hive-site configuration. Will be mounted as hivemetastore-site.xml file
+  hiveSiteSecret: ""
+  ## @param conf.hiveSiteSecretKey Key in secret containing extra hive-site configuration
+  hiveSiteSecretKey: "hivemetastore-site.xml"
+
+## Specific configuration of hadoop-aws plugin
+## ref: https://hadoop.apache.org/docs/current/hadoop-aws/tools/hadoop-aws/index.html
+objectStore:
+  ## @param objectStore.sslEnabled [default: false] Value of fs.s3a.connection.ssl.enabled in hive-site.xml file
+  sslEnabled: false
+
+  ## @param objectStore.endpoint Value of fs.s3a.endpoint in hive-site.xml file
+  endpoint:
+
+  ## @param objectStore.accessKeyId Value of fs.s3a.access.key in hive-site.xml file
+  accessKeyId:
+
+  ## @param objectStore.secretAccessKey Value of fs.s3a.secret.key in hive-site.xml file
+  secretAccessKey:
+
+  ## @param objectStore.pathStyle [default: true] Value of fs.s3a.path.style.access in hive-site.xml file
+  pathStyle: true
+
+  ## @param objectStore.impl [default: org.apache.hadoop.fs.s3a.S3AFileSystem] Value of fs.s3a.impl in hive-site.xml file
+  impl: "org.apache.hadoop.fs.s3a.S3AFileSystem"
+
+# Update log4j properites
+log:
+  level:
+    ## @param log.level.meta [default: debug] Log level of logger.meta in log4j properties
+    meta: debug
+    ## @param log.level.hive [default: info] Log level of logger.hive in log4j properties
+    hive: info
+    ## @param log.level.datanucleusorg [default: info] Log level of logger.datanucleusorg in log4j properties
+    datanucleusorg: info
+    ## @param log.level.datanucleus [default: info] Log level of logger.datanucleus in log4j properties
+    datanucleus: info
+    ## @param log.level.root [default: info] Log level of logger.root in log4j properties
+    root: info
+
+## @section Database Paramaters
+# -- Configuration values for the postgresql dependency.
+# ref: https://github.com/bitnami/charts/tree/main/bitnami/postgresql
+# @default -- see `values.yaml`
+postgresql:
+  ##
+  ## Use the PostgreSQL chart dependency.
+  ## Set to false if bringing your own PostgreSQL.
+  ## @param postgresql.enabled Switch to enable or disable the PostgreSQL helm chart
+  enabled: true
+
+  ## PostgreSQL global parameters
+  ## @param postgresql.global.postgresql.auth.username Name for a custom user to create (overrides `auth.username`)
+  ## @param postgresql.global.postgresql.auth.password Password for the custom user to create (overrides `auth.password`)
+  ## @param postgresql.global.postgresql.auth.database Name for a custom database to create (overrides `auth.database`)
+  global:
+    postgresql:
+      auth:
+        username: hive
+        password: hive
+        database: metastore
+
+  primary:
+    ##
+    ## Persistent Volume Storage configuration.
+    ## ref: https://kubernetes.io/docs/user-guide/persistent-volumes
+    persistence:
+      ##
+      ## @param postgresql.primary.persistence.enabled [default: true] Enable PostgreSQL Primary data persistence using PVC
+      enabled: true
+      ##
+      ## Persistent class
+      # storageClass: classname
+      ##
+      ## Access modes:
+      ## @param postgresql.primary.persistence.accessModes PVC Access Mode for PostgreSQL volume
+      accessModes:
+        - ReadWriteOnce
+
+    # The apache hive docker image has a jdbc driver that doesn't use the latest encryption
+    # settings. Tell postgres to allow access any way
+    ## @param postgresql.primary.extendedConfiguration [default: password_encryption=md5] Extended PostgreSQL Primary configuration (appended to main or default configuration)
+    extendedConfiguration: |-
+      password_encryption=md5
+
+    ## PostgreSQL port
+    ## @param postgresql.primary.service.ports.postgresql [default: 5432] PostgreSQL service port
+    service:
+      ports:
+        postgresql: "5432"

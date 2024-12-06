@@ -1,0 +1,47 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "hive-metastore.fullname" . }}-db-init-schema
+spec:
+  template:
+    spec:
+      containers:
+      - name: hivemeta
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy | quote }}
+        command: ["/bin/sh", "-c"]
+        args:
+          - schematool
+           --verbose
+           -initSchema
+           -ifNotExists
+           -dbType postgres
+           -userName "{{- .Values.connections.database.username }}"
+           -passWord "$DATABASE_PASSWORD"
+           -url "jdbc:postgresql://{{- tpl .Values.connections.database.host . }}:{{- .Values.connections.database.port }}/{{- .Values.connections.database.database }}"
+        volumeMounts:
+        - name: hive-config
+          mountPath: /opt/hive-metastore/conf
+        env:
+          {{- if .Values.extraEnvVars }}
+          {{- .Values.extraEnvVars | nindent 12 }}
+          {{- end }}
+          {{- if .Values.connections.database.password }}
+          - name: DATABASE_PASSWORD
+            value: "{{- .Values.connections.database.password }}"
+          {{- end }}
+        {{- if .Values.extraEnvVarsSecret }}
+        envFrom:
+          {{- if .Values.extraEnvVarsSecret }}
+          - secretRef:
+              name: "{{- .Values.extraEnvVarsSecret }}"
+          {{- end }}
+        {{- end }}
+      volumes:
+      - name: hive-config
+        configMap:
+          name: {{ include "hive-metastore.fullname" . }}
+
+
+      restartPolicy: Never
+  backoffLimit: 3

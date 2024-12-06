@@ -1,0 +1,148 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "hive-metastore.fullname" . }}
+  labels:
+    app.kubernetes.io/name: {{ include "hive-metastore.name" . }}
+    {{- include "hive-metastore.labels" . | nindent 4 }}
+data:
+  hive-site.xml: |
+    <?xml version="1.0"?>
+    <?xml-stylesheet type="text/xsl" href="configuration.xsl"?>
+    <configuration>
+        <property>
+          <name>metastore.expression.proxy</name>
+          <value>org.apache.hadoop.hive.metastore.DefaultPartitionExpressionProxy</value>
+        </property>
+        <property>
+          <name>metastore.task.threads.always</name>
+          <value>org.apache.hadoop.hive.metastore.events.EventCleanerTask</value>
+        </property>
+
+        <property>
+          <name>hive.metastore.warehouse.dir</name>
+          <value>file:///opt/hive/warehouse</value>
+        </property>
+
+        <!--Postgres' connection details -->
+        <property>
+          <name>javax.jdo.option.ConnectionURL</name>
+          <value>jdbc:postgresql://{{- tpl .Values.connections.database.host . }}/{{- .Values.connections.database.database }}</value>
+        </property>
+        <property>
+          <name>javax.jdo.option.ConnectionDriverName</name>
+          <value>org.postgresql.Driver</value>
+        </property>
+        <property>
+          <name>javax.jdo.option.ConnectionUserName</name>
+          <value>{{- .Values.connections.database.username }}</value>
+        </property>
+        <property>
+          <name>datanucleus.autoCreateSchema</name>
+          <value>false</value>
+        </property>
+
+        <property>
+          <name>hive.metastore.uris</name>
+          <value>thrift://localhost:{{- .Values.service.port }}</value>
+        </property>
+
+        <property>
+            <name>hive.server2.transport.mode</name>
+            <value>http</value>
+        </property>
+
+        <property>
+            <name>hive.server2.thrift.http.port</name>
+            <value>{{- .Values.service.port }}</value>
+        </property>
+
+        <property>
+            <name>hive.server2.thrift.http.path</name>
+            <value>cliservice</value>
+        </property>
+
+        <property>
+            <name>hive.server2.authentication</name>
+            <value>NOSASL</value>
+        </property>
+        <property>
+          <name>hive.metastore.sasl.enabled</name>
+          <value>false</value>
+        </property>
+
+        <!--Object Store connection Info -->
+        <property>
+            <name>fs.s3a.connection.ssl.enabled</name>
+            <value>{{- .Values.objectStore.sslEnabled }}</value>
+        </property>
+
+        {{- if .Values.objectStore.endpoint }}
+        <property>
+            <name>fs.s3a.endpoint</name>
+            <value>{{- .Values.objectStore.endpoint }}</value>
+        </property>
+        {{- end }}
+
+        {{- if .Values.objectStore.accessKeyId }}
+        <property>
+            <name>fs.s3a.access.key</name>
+            <value>{{- .Values.objectStore.accessKeyId }}</value>
+        </property>
+        {{- end }}
+
+        {{- if .Values.objectStore.secretAccessKey }}
+        <property>
+            <name>fs.s3a.secret.key</name>
+            <value>{{- .Values.objectStore.secretAccessKey }}</value>
+        </property>
+        {{- end }}
+
+        <property>
+            <name>fs.s3a.path.style.access</name>
+            <value>{{- .Values.objectStore.pathStyle}}</value>
+        </property>
+
+        <property>
+            <name>fs.s3a.impl</name>
+            <value>{{- .Values.objectStore.impl}}</value>
+        </property>
+
+      {{- if index .Values.conf "hiveSite" }}
+      {{- range $key, $value := index .Values.conf "hiveSite" }}
+      <property><name>{{ $key }}</name><value>{{ $value }}</value></property>
+      {{- end }}
+      {{- end }}
+
+    </configuration>
+  hive-log4j2.properties: |
+    name = metastore
+
+    appenders = console
+    
+    appender.console.type = Console
+    appender.console.name = consoleLogger
+    appender.console.layout.type = PatternLayout
+    appender.console.layout.pattern = %d{MM/dd/yy HH:mm:ss} %p %c: %m%n
+        
+    loggers = meta
+    
+    logger.meta.name = org.apache.hadoop.hive.metastore
+    logger.meta.level = {{- .Values.log.level.meta }} 
+    
+    logger.meta.name = org.apache.hadoop.fs.s3a
+    logger.meta.level = {{- .Values.log.level.meta }} 
+
+    logger.hive.name = org.apache.hive
+    logger.hive.level = {{- .Values.log.level.hive }} 
+    
+    logger.datanucleusorg.name = org.datanucleus
+    logger.datanucleusorg.level = {{- .Values.log.level.datanucleusorg }} 
+    
+    logger.datanucleus.name = DataNucleus
+    logger.datanucleus.level = {{- .Values.log.level.datanucleus }} 
+    
+    rootLogger.level = {{- .Values.log.level.root }} 
+    rootLogger.appenderRefs = console
+    rootLogger.appenderRef.console.ref = consoleLogger
+

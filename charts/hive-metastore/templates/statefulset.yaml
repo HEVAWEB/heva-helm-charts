@@ -1,0 +1,108 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "hive-metastore.fullname" . }}
+  labels:
+    {{- include "hive-metastore.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "hive-metastore.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "hive-metastore.labels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "hive-metastore.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - "/bin/sh"
+            - "-c"
+            - "hive --service metastore"
+          env:
+            - name: SERVICE_NAME
+              value: metastore
+            - name: DATABASE_HOST
+              value: "{{- tpl .Values.connections.database.host . }}"
+            - name: DATABASE_DB
+              value: "{{- .Values.connections.database.database }}"
+            - name: DATABASE_USER
+              value: "{{- .Values.connections.database.username }}"
+            {{- if .Values.connections.database.password }}
+            - name: DATABASE_PASSWORD
+              value: "{{- .Values.connections.database.password }}"
+            {{- end }}
+            {{- if .Values.extraEnvVars }}
+            {{- .Values.extraEnvVars | nindent 12 }}
+            {{- end }}
+          {{- if .Values.extraEnvVarsSecret }}
+          envFrom:
+            {{- if .Values.extraEnvVarsSecret }}
+            - secretRef:
+                name: "{{- .Values.extraEnvVarsSecret  }}"
+            {{- end }}
+          {{- end }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.port }}
+              protocol: TCP
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: hive-config
+              mountPath: /opt/hive/conf
+              readOnly: true
+            - name: warehouse-dir
+              mountPath: /opt/hive/warehouse
+            {{- if .Values.extraVolumeMounts }}
+            {{- tpl .Values.extraVolumeMounts .context | nindent 12 }}
+            {{- end }}
+      volumes:
+        - name: hive-config
+          projected:
+            sources:
+              - configMap:
+                  name: {{ include "hive-metastore.fullname" . }}
+              {{- if .Values.conf.hiveSiteSecret }}
+              - secret:
+                  name: {{ .Values.conf.hiveSiteSecret }}
+                  items:
+                    - key: {{ .Values.conf.hiveSiteSecretKey }}
+                      path: hivemetastore-site.xml
+              {{- end }}
+        - name: warehouse-dir
+          emptyDir: {}
+        {{- if .Values.extraVolumes }}
+        {{- tpl .Values.extraVolumes .context | nindent 8 }}
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
