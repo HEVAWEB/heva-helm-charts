@@ -38,6 +38,10 @@ data:
           <value>{{- .Values.connections.database.username }}</value>
         </property>
         <property>
+          <name>javax.jdo.option.ConnectionPassword</name>
+          <value>{{- .Values.connections.database.password }}</value>
+        </property>
+        <property>
           <name>datanucleus.autoCreateSchema</name>
           <value>false</value>
         </property>
